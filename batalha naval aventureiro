@@ -1,0 +1,171 @@
+#include <stdio.h>
+
+// --- Constantes ---
+#define TAM_TAB 10      // Tamanho do tabuleiro (10x10)
+#define TAM_NAVIO 3     // Tamanho fixo dos navios
+#define AGUA 0          // Valor para representar água
+#define NAVIO 3         // Valor para representar navio
+
+// --- Orientações (para legibilidade) ---
+#define VERTICAL 0
+#define HORIZONTAL 1
+#define DIAGONAL_DESC 2 // Diagonal descendente (da esquerda para a direita)
+#define DIAGONAL_ASC  3 // Diagonal ascendente (da esquerda para a direita)
+
+
+// --- Matriz Global ---
+// Representa o nosso tabuleiro de jogo
+int tabuleiro[TAM_TAB][TAM_TAB];
+
+// --- Protótipos das Funções ---
+
+/**
+ * @brief Preenche toda a matriz do tabuleiro com o valor de AGUA (0).
+ */
+void inicializarTabuleiro();
+
+/**
+ * @brief Exibe o estado atual do tabuleiro no console.
+ */
+void exibirTabuleiro();
+
+/**
+ * @brief Tenta posicionar um navio no tabuleiro, validando limites e sobreposição.
+ * @param l Linha inicial do navio.
+ * @param c Coluna inicial do navio.
+ * @param orientacao A direção do navio (VERTICAL, HORIZONTAL, DIAGONAL_DESC, DIAGONAL_ASC).
+ * @param tamanho O número de casas que o navio ocupa.
+ * @return int Retorna 1 (sucesso) se o navio foi posicionado,
+ * ou 0 (falha) se houver violação de limites ou sobreposição.
+ */
+int posicionarNavio(int l, int c, int orientacao, int tamanho);
+
+
+/**
+ * @brief Função principal que orquestra o programa.
+ */
+int main() {
+    // 1. Prepara o tabuleiro, preenchendo com água
+    inicializarTabuleiro();
+
+    // 2. Define as posições dos quatro navios (direto no código)
+    //    (linha, coluna, orientação, tamanho)
+
+    // Navio 1: Vertical
+    posicionarNavio(1, 1, VERTICAL, TAM_NAVIO);
+
+    // Navio 2: Horizontal
+    posicionarNavio(1, 4, HORIZONTAL, TAM_NAVIO);
+
+    // Navio 3: Diagonal Descendente (linha++ e coluna++)
+    posicionarNavio(4, 3, DIAGONAL_DESC, TAM_NAVIO);
+
+    // Navio 4: Diagonal Ascendente (linha-- e coluna++)
+    // Nota: A posição inicial é a mais "baixa" do navio
+    posicionarNavio(8, 6, DIAGONAL_ASC, TAM_NAVIO);
+
+    // 3. Exibe o tabuleiro final com todos os navios
+    printf("### Batalha Naval - Tabuleiro com Navios Diagonais ###\n\n");
+    exibirTabuleiro();
+
+    return 0;
+}
+
+/**
+ * @brief Preenche toda a matriz do tabuleiro com o valor de AGUA (0).
+ */
+void inicializarTabuleiro() {
+    // Loop aninhado para percorrer cada célula da matriz
+    for (int i = 0; i < TAM_TAB; i++) {
+        for (int j = 0; j < TAM_TAB; j++) {
+            tabuleiro[i][j] = AGUA;
+        }
+    }
+}
+
+/**
+ * @brief Exibe o estado atual do tabuleiro no console com cabeçalhos.
+ */
+void exibirTabuleiro() {
+    // Imprime o cabeçalho das colunas (0 a 9)
+    printf("  "); // Espaço para o cabeçalho das linhas
+    for (int j = 0; j < TAM_TAB; j++) {
+        printf("%d ", j);
+    }
+    printf("\n");
+
+    // Imprime as linhas do tabuleiro
+    for (int i = 0; i < TAM_TAB; i++) {
+        printf("%d ", i); // Imprime o cabeçalho da linha (0 a 9)
+        for (int j = 0; j < TAM_TAB; j++) {
+            // Imprime o conteúdo da célula (0 ou 3)
+            printf("%d ", tabuleiro[i][j]);
+        }
+        printf("\n"); // Pula para a próxima linha ao final de cada linha do tabuleiro
+    }
+}
+
+/**
+ * @brief Tenta posicionar um navio, validando limites e sobreposição para todas as orientações.
+ */
+int posicionarNavio(int l, int c, int orientacao, int tamanho) {
+    // --- 1. Fase de Validação ---
+    // Verifica se o navio cabe e se não há sobreposição ANTES de alterar o tabuleiro.
+    for (int i = 0; i < tamanho; i++) {
+        int l_atual = l;
+        int c_atual = c;
+
+        // Calcula a posição da célula atual do navio baseado na orientação
+        switch (orientacao) {
+            case VERTICAL:
+                l_atual += i;
+                break;
+            case HORIZONTAL:
+                c_atual += i;
+                break;
+            case DIAGONAL_DESC:
+                l_atual += i;
+                c_atual += i;
+                break;
+            case DIAGONAL_ASC:
+                l_atual -= i; // Linha diminui
+                c_atual += i; // Coluna aumenta
+                break;
+        }
+
+        // Validação 1: Está fora dos limites do tabuleiro?
+        // Verifica se a linha ou coluna está fora do intervalo [0, TAM_TAB - 1]
+        if (l_atual < 0 || l_atual >= TAM_TAB || c_atual < 0 || c_atual >= TAM_TAB) {
+            printf("Falha ao posicionar: Navio em (%d, %d) sai dos limites do tabuleiro.\n", l, c);
+            return 0; // Falha
+        }
+
+        // Validação 2: Já existe um navio nesta posição?
+        if (tabuleiro[l_atual][c_atual] != AGUA) {
+            printf("Falha ao posicionar: Sobreposicao de navio em (%d, %d).\n", l_atual, c_atual);
+            return 0; // Falha
+        }
+    }
+
+    // --- 2. Fase de Posicionamento ---
+    // Se passou em todas as validações, pode posicionar o navio.
+    for (int i = 0; i < tamanho; i++) {
+        switch (orientacao) {
+            case VERTICAL:
+                tabuleiro[l + i][c] = NAVIO;
+                break;
+            case HORIZONTAL:
+                tabuleiro[l][c + i] = NAVIO;
+                break;
+            case DIAGONAL_DESC:
+                tabuleiro[l + i][c + i] = NAVIO;
+                break;
+            case DIAGONAL_ASC:
+                tabuleiro[l - i][c + i] = NAVIO;
+                break;
+        }
+    }
+
+    // printf("Navio (orientacao: %d) posicionado com sucesso em (%d, %d).\n", orientacao, l, c);
+    return 1; // Sucesso
+}
