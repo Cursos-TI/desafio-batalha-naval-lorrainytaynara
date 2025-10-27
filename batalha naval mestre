@@ -1,0 +1,250 @@
+#include <stdio.h>
+
+// --- Constantes do Tabuleiro e Navios ---
+#define TAM_TAB 10      // Tamanho do tabuleiro (10x10)
+#define TAM_NAVIO 3     // Tamanho fixo dos navios
+#define AGUA 0          // Valor para representar água
+#define NAVIO 3         // Valor para representar navio
+
+// --- Constantes das Habilidades ---
+#define TAM_HAB 5       // Tamanho das matrizes de habilidade (5x5)
+#define EFEITO_HAB 5    // Valor para representar a área de efeito
+
+// --- Orientações dos Navios ---
+#define VERTICAL 0
+#define HORIZONTAL 1
+#define DIAGONAL_DESC 2 // Diagonal descendente (linha++, coluna++)
+#define DIAGONAL_ASC  3 // Diagonal ascendente (linha--, coluna++)
+
+// --- Matrizes Globais ---
+int tabuleiro[TAM_TAB][TAM_TAB];
+int matrizCone[TAM_HAB][TAM_HAB];
+int matrizCruz[TAM_HAB][TAM_HAB];
+int matrizOcta[TAM_HAB][TAM_HAB]; // Octaedro (vista frontal = Losango)
+
+// --- Protótipos das Funções ---
+void inicializarTabuleiro();
+void exibirTabuleiro();
+int posicionarNavio(int l, int c, int orientacao, int tamanho);
+void criarMatrizesHabilidade();
+void aplicarHabilidade(int hab[TAM_HAB][TAM_HAB], int habOrigemL, int habOrigemC, int tabOrigemL, int tabOrigemC);
+
+/**
+ * @brief Função principal que orquestra todo o programa.
+ */
+int main() {
+    // --- Etapa 1: Níveis Anteriores (Posicionar Navios) ---
+    inicializarTabuleiro();
+
+    // Posiciona os 4 navios (2 normais, 2 diagonais)
+    posicionarNavio(1, 1, VERTICAL, TAM_NAVIO);
+    posicionarNavio(1, 4, HORIZONTAL, TAM_NAVIO);
+    posicionarNavio(4, 3, DIAGONAL_DESC, TAM_NAVIO);
+    posicionarNavio(8, 6, DIAGONAL_ASC, TAM_NAVIO);
+
+    // Exibe o tabuleiro apenas com os navios
+    printf("--- Tabuleiro Inicial com Navios ('N') ---\n");
+    exibirTabuleiro();
+
+    // --- Etapa 2: Nível Atual (Habilidades) ---
+
+    // 2.1. Cria dinamicamente as matrizes de AoE
+    criarMatrizesHabilidade();
+
+    // 2.2. Define o ponto de origem DAS HABILIDADES no tabuleiro
+    int coneL = 0, coneC = 4; // Topo do tabuleiro, centralizado
+    int cruzL = 5, cruzC = 5; // Centro do tabuleiro
+    int octaL = 8, octaC = 2; // Canto inferior esquerdo
+
+    // 2.3. Define o ponto de origem DENTRO da matriz de habilidade
+    int centroHab = TAM_HAB / 2; // 2 (para 5x5)
+
+    // 2.4. Aplica as habilidades ao tabuleiro
+    // Cone: Origem na matriz é (0, centro)
+    aplicarHabilidade(matrizCone, 0, centroHab, coneL, coneC);
+    
+    // Cruz: Origem na matriz é (centro, centro)
+    aplicarHabilidade(matrizCruz, centroHab, centroHab, cruzL, cruzC);
+    
+    // Octaedro: Origem na matriz é (centro, centro)
+    aplicarHabilidade(matrizOcta, centroHab, centroHab, octaL, octaC);
+
+    // 2.5. Exibe o tabuleiro final com as habilidades
+    printf("\n--- Tabuleiro com Habilidades Aplicadas ('*') ---\n");
+    exibirTabuleiro();
+
+    return 0;
+}
+
+// --- Funções dos Níveis Anteriores (Modificadas/Mantidas) ---
+
+/**
+ * @brief Preenche toda a matriz do tabuleiro com o valor de AGUA (0).
+ */
+void inicializarTabuleiro() {
+    for (int i = 0; i < TAM_TAB; i++) {
+        for (int j = 0; j < TAM_TAB; j++) {
+            tabuleiro[i][j] = AGUA;
+        }
+    }
+}
+
+/**
+ * @brief Exibe o estado atual do tabuleiro no console com cabeçalhos.
+ * (Atualizado para incluir o caractere de EFEITO_HAB)
+ */
+void exibirTabuleiro() {
+    // Cabeçalho das colunas
+    printf("  ");
+    for (int j = 0; j < TAM_TAB; j++) {
+        printf("%d ", j);
+    }
+    printf("\n");
+
+    // Linhas do tabuleiro
+    for (int i = 0; i < TAM_TAB; i++) {
+        printf("%d ", i); // Cabeçalho da linha
+        for (int j = 0; j < TAM_TAB; j++) {
+            // Usa switch para imprimir o caractere correto
+            switch (tabuleiro[i][j]) {
+                case AGUA:
+                    printf("~ "); // Água
+                    break;
+                case NAVIO:
+                    printf("N "); // Navio
+                    break;
+                case EFEITO_HAB:
+                    printf("* "); // Área de Efeito
+                    break;
+                default:
+                    printf("? "); // Desconhecido (nunca deve acontecer)
+            }
+        }
+        printf("\n"); // Nova linha
+    }
+}
+
+/**
+ * @brief Tenta posicionar um navio, validando limites e sobreposição.
+ * (Mantido do nível anterior)
+ */
+int posicionarNavio(int l, int c, int orientacao, int tamanho) {
+    // 1. Fase de Validação
+    for (int i = 0; i < tamanho; i++) {
+        int l_atual = l;
+        int c_atual = c;
+
+        switch (orientacao) {
+            case VERTICAL:      l_atual += i; break;
+            case HORIZONTAL:    c_atual += i; break;
+            case DIAGONAL_DESC: l_atual += i; c_atual += i; break;
+            case DIAGONAL_ASC:  l_atual -= i; c_atual += i; break;
+        }
+
+        // Validação de Limites
+        if (l_atual < 0 || l_atual >= TAM_TAB || c_atual < 0 || c_atual >= TAM_TAB) {
+            // printf("Falha ao posicionar: Fora dos limites.\n");
+            return 0; // Falha
+        }
+
+        // Validação de Sobreposição
+        if (tabuleiro[l_atual][c_atual] != AGUA) {
+            // printf("Falha ao posicionar: Sobreposicao.\n");
+            return 0; // Falha
+        }
+    }
+
+    // 2. Fase de Posicionamento
+    for (int i = 0; i < tamanho; i++) {
+        switch (orientacao) {
+            case VERTICAL:      tabuleiro[l + i][c] = NAVIO; break;
+            case HORIZONTAL:    tabuleiro[l][c + i] = NAVIO; break;
+            case DIAGONAL_DESC: tabuleiro[l + i][c + i] = NAVIO; break;
+            case DIAGONAL_ASC:  tabuleiro[l - i][c + i] = NAVIO; break;
+        }
+    }
+    return 1; // Sucesso
+}
+
+
+// --- Funções Novas (Nível Avançado) ---
+
+/**
+ * @brief Cria dinamicamente as matrizes de habilidade (Cone, Cruz, Octaedro)
+ * usando loops aninhados e condicionais.
+ */
+void criarMatrizesHabilidade() {
+    // Ponto central da matriz de habilidade (para 5x5, centro = 2)
+    int centro = TAM_HAB / 2;
+
+    for (int i = 0; i < TAM_HAB; i++) {
+        for (int j = 0; j < TAM_HAB; j++) {
+            
+            // --- 1. Lógica do Cone (Origem no topo: 0, centro) ---
+            // A área afetada (j) expande conforme a linha (i) aumenta.
+            // j deve estar entre (centro - i) e (centro + i).
+            if (j >= (centro - i) && j <= (centro + i)) {
+                matrizCone[i][j] = 1;
+            } else {
+                matrizCone[i][j] = 0;
+            }
+
+            // --- 2. Lógica da Cruz (Origem no centro: centro, centro) ---
+            // Afeta se estiver na linha central (i == centro) OU na coluna central (j == centro).
+            if (i == centro || j == centro) {
+                matrizCruz[i][j] = 1;
+            } else {
+                matrizCruz[i][j] = 0;
+            }
+
+            // --- 3. Lógica do Octaedro/Losango (Origem no centro: centro, centro) ---
+            // Usa a "Distância de Manhattan": |i - centro| + |j - centro| <= raio (centro)
+            if (abs(i - centro) + abs(j - centro) <= centro) {
+                matrizOcta[i][j] = 1;
+            } else {
+                matrizOcta[i][j] = 0;
+            }
+        }
+    }
+}
+
+/**
+ * @brief Sobrepõe uma matriz de habilidade (ex: matrizCone) no tabuleiro principal.
+ *
+ * @param hab Matriz da habilidade (5x5) a ser aplicada.
+ * @param habOrigemL Linha de origem DENTRO da matriz de habilidade (ex: 0 para cone, 2 para cruz).
+ * @param habOrigemC Coluna de origem DENTRO da matriz de habilidade (ex: 2 para todos).
+ * @param tabOrigemL Linha de destino NO TABULEIRO (10x10) onde a origem será aplicada.
+ * @param tabOrigemC Coluna de destino NO TABULEIRO (10x10) onde a origem será aplicada.
+ */
+void aplicarHabilidade(int hab[TAM_HAB][TAM_HAB], int habOrigemL, int habOrigemC, int tabOrigemL, int tabOrigemC) {
+    
+    // Itera por toda a matriz de habilidade (5x5)
+    for (int i_hab = 0; i_hab < TAM_HAB; i_hab++) {
+        for (int j_hab = 0; j_hab < TAM_HAB; j_hab++) {
+            
+            // Condicional 1: Verifica se esta célula da habilidade está ativa (== 1)
+            if (hab[i_hab][j_hab] == 1) {
+                
+                // Calcula o "deslocamento" da célula atual (i_hab, j_hab)
+                // em relação à origem da habilidade (habOrigemL, habOrigemC)
+                int deltaL = i_hab - habOrigemL;
+                int deltaC = j_hab - habOrigemC;
+
+                // Calcula a posição final no tabuleiro principal (10x10)
+                int tabL = tabOrigemL + deltaL;
+                int tabC = tabOrigemC + deltaC;
+
+                // Condicional 2: Verifica se a posição calculada está DENTRO dos limites do tabuleiro (0-9)
+                if (tabL >= 0 && tabL < TAM_TAB && tabC >= 0 && tabC < TAM_TAB) {
+                    
+                    // Condicional 3: Aplica o efeito (5) apenas se for ÁGUA (0)
+                    // Isso evita que o '5' sobreponha um '3' (NAVIO)
+                    if (tabuleiro[tabL][tabC] == AGUA) {
+                        tabuleiro[tabL][tabC] = EFEITO_HAB;
+                    }
+                }
+            }
+        }
+    }
+}
